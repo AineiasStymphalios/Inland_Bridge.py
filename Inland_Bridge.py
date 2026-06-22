@@ -35,30 +35,32 @@ def getNumCustomMapOptions():
 	return 11
 
 def getCustomMapOptionName(argsList):
-	[iOption] = argsList
-	if iOption == 0:
-		return "Climate Details"
-	elif iOption == 1:
-		return "Hemisphere Option"
-	elif iOption == 2:
-		return "Axial Tilt"
-	elif iOption == 3:
-		return "World Wrap"
-	elif iOption == 4:
-		return "Geography"
-	elif iOption == 5:
-		return "Islands"
-	elif iOption == 6:
-		return "Two-tile Coasts"
-	elif iOption == 7:
-		return "Team Start"
-	elif iOption == 8:
-		return "Teamer Resource Balancing"
-	elif iOption == 9:
-		return "Debug Signs"
-	elif iOption == 10:
-		return "Land Food Across Map"
-	return ""
+    [iOption] = argsList
+    if iOption == 0:
+        return "Climate Details"
+    elif iOption == 1:
+        return "Hemisphere Option"
+    elif iOption == 2:
+        return "Axial Tilt"
+    elif iOption == 3:
+        return "World Wrap"
+    elif iOption == 4:
+        return "Geography"
+    elif iOption == 5:
+        return "Islands"
+    elif iOption == 6:
+        return "Two-tile Coasts"
+    elif iOption == 7:
+        return "Team Start"
+    elif iOption == 8:
+        return "Teamer Resource Balancing"
+    elif iOption == 9:
+        return "Debug Signs"
+    elif iOption == 10:
+        return "Land Food Across Map"
+    elif iOption == 11:
+        return "Reveal Start Area Radius"
+    return ""
 
 def getNumCustomMapOptionValues(argsList):
 	[iOption] = argsList
@@ -73,6 +75,7 @@ def getNumCustomMapOptionValues(argsList):
 	elif iOption == 8: return 2 # Semistrategic resources
 	elif iOption == 9: return 2 # Debug Signs
 	elif iOption == 10: return 4 # Land Food Across Map
+	elif iOption == 11: return 4  # Radius
 	return 0
 
 def getCustomMapOptionDescAt(argsList):
@@ -118,6 +121,11 @@ def getCustomMapOptionDescAt(argsList):
 		elif iSelection == 1: return "1 per 4x4 tiles"
 		elif iSelection == 2: return "1 per 5x5 tiles"
 		return "1 per 6x6 tiles"
+	elif iOption == 11:
+	    if iSelection == 0: return "Disabled"
+	    elif iSelection == 1: return "Radius 2"
+	    elif iSelection == 2: return "Radius 3"
+	    return "Radius 4"
 	return ""
 
 def getCustomMapOptionDefault(argsList):
@@ -144,6 +152,8 @@ def getCustomMapOptionDefault(argsList):
 		return 0
 	elif iOption == 10: # Land Food Across Map
 		return 2
+	elif iOption == 11: # default = Disabled
+		return 0  
 	return 0
 
 ########################################
@@ -1724,6 +1734,36 @@ class ResourceManager:
 		# Return the number of bonus types attempted, not the number of copies
 		# successfully placed.
 		return iAttempted
+def revealStartingArea(iRadius=3):
+	gc = CyGlobalContext()
+	map = CyMap()
+	
+	for iPlayer in range(gc.getMAX_CIV_PLAYERS()):
+		pPlayer = gc.getPlayer(iPlayer)
+
+		if not pPlayer.isEverAlive():
+			continue
+
+		pStart = pPlayer.getStartingPlot()
+		if pStart is None or pStart.isNone():
+			continue
+
+		iTeam = pPlayer.getTeam()
+		sx = pStart.getX()
+		sy = pStart.getY()
+
+		for dx in range(-iRadius, iRadius + 1):
+			for dy in range(-iRadius, iRadius + 1):
+				nx = sx + dx
+				ny = sy + dy
+
+				if nx < 0 or nx >= map.getGridWidth():
+					continue
+				if ny < 0 or ny >= map.getGridHeight():
+					continue
+
+				if plotDistance(sx, sy, nx, ny) <= iRadius:
+					map.plot(nx, ny).setRevealed(iTeam, True, False, -1)
 
 
 def normalizeAddExtras():
@@ -1734,7 +1774,15 @@ def normalizeAddExtras():
 	map.recalculateAreas()
 	# Instantiate the Generalized Manager
 	rm = ResourceManager(map, gc, dice)
-	
+	iRevealOption = map.getCustomMapOption(11)
+	iRevealRadius = 0
+
+	if iRevealOption == 1:
+		iRevealRadius = 2
+	elif iRevealOption == 2:
+		iRevealRadius = 3
+	elif iRevealOption == 3:
+		iRevealRadius = 4
 	bTeamerBalancingOption = map.getCustomMapOption(8)
 	iMapFoodOption = map.getCustomMapOption(10)
 	LandFoodBonus = ["BONUS_WHEAT", "BONUS_RICE", "BONUS_CORN", "BONUS_COW", "BONUS_SHEEP", "BONUS_PIG", "BONUS_DEER", "BONUS_BANANA"]
@@ -1778,4 +1826,5 @@ def normalizeAddExtras():
 	if iMapFoodOption != 0:
 		print "PY: Inland Bridge ensuring mapwide land food bonuses..."
 		rm.ensure_bonus_per_grid(LandFoodBonus, iMapFoodOption + 3)
-
+	if iRevealRadius > 0:
+		revealStartingArea(iRevealRadius)
