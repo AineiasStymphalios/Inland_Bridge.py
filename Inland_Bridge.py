@@ -909,6 +909,22 @@ def generatePlotTypes():
 				("IslandsBL", "Rect", 0.270, 0.42, 0.15, 0.1, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
 				("IslandsBR", "Rect", 0.730, 0.42, 0.15, 0.1, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
 			]
+	elif geography_opt == 1: # Infinite Sea
+		bEnforceLandEdge = 1
+		# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
+		base_regions = [
+			("Ellipse_Sea_R_BG", "Ellipse", 0.730, 0.500, 0.3, 0.4, 0, "water", BalanceGrain, ScatterGrain, 100),
+			("Ellipse_Sea_L_BG", "Ellipse", 0.270, 0.500, 0.3, 0.4, 0, "water", BalanceGrain, ScatterGrain, 100),
+			("Ellipse_Sea_R", "Ellipse", 0.730, 0.500, 0.375 + fSeaSizeChange, 0.650 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 70),
+			("Ellipse_Sea_L", "Ellipse", 0.270, 0.500, 0.375 + fSeaSizeChange, 0.650 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 70),
+			("Bridge", "Ellipse", 0.500, 0.500, 0.170, 0.200, 0, "water", GatherGrain, ScatterGrain, 90),
+		]
+		if island_opt == 1: # Enabled
+			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
+			island_regions = [
+				("IslandsCL", "Ellipse", 0.280, 0.500, 0.170, 0.200, 0, "default", BalanceGrain, ScatterGrain, 10 + iWaterPercentChange),
+				("IslandsCR", "Ellipse", 0.720, 0.500, 0.170, 0.200, 0, "default", BalanceGrain, ScatterGrain, 10 + iWaterPercentChange),
+			]
 	elif geography_opt == 2: # Hourglass
 		bEnforceLandEdge = 0
 		# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
