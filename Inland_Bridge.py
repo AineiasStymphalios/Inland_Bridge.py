@@ -919,7 +919,7 @@ def generatePlotTypes():
 			("Ellipse_Sea_L", "Ellipse", 0.270, 0.500, 0.375 + fSeaSizeChange, 0.650 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 70),
 			("Bridge", "Ellipse", 0.500, 0.500, 0.170, 0.200, 0, "water", GatherGrain, ScatterGrain, 90),
 		]
-		if island_opt == 1: # Enabled
+		if island_opt != 0: # Enabled
 			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
 			island_regions = [
 				("IslandsCL", "Ellipse", 0.280, 0.500, 0.170, 0.200, 0, "default", BalanceGrain, ScatterGrain, 10 + iWaterPercentChange),
@@ -934,7 +934,7 @@ def generatePlotTypes():
 			("Ellipse_small_seaL", "Ellipse", 0.250, 0.500, 0.300 + fSeaSizeChange*0.5, 0.400 + fSeaSizeChange*0.5, 0, "water", BalanceGrain, ScatterGrain, 85, True),
 			("Ellipse_small_seaR", "Ellipse", 0.750, 0.500, 0.300 + fSeaSizeChange*0.5, 0.400 + fSeaSizeChange*0.5, 0, "water", BalanceGrain, ScatterGrain, 85, True),
 		]
-		if island_opt == 1: # Enabled
+		if island_opt != 0: # Enabled
 			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
 			island_regions = [
 				("IslandsTL", "Rect", 0.100, 0.650, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
@@ -949,7 +949,7 @@ def generatePlotTypes():
 			("Rect_Sea_Grain", "Ellipse", 0.500, 0.200, 0.400 + fSeaSizeChange, 0.800, 0, "water", BalanceGrain, ScatterGrain, 70, True),
 			("Rect_Sea_Grain 2", "Ellipse", 0.500, 0.800, 0.400 + fSeaSizeChange, 0.800, 180, "water", BalanceGrain, ScatterGrain, 70, True),
 		]
-		if island_opt == 1: # Enabled
+		if island_opt != 0: # Enabled
 			island_regions = [
 					("IslandsBL", "Rect", 0.4, 0.27, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 					("IslandsTL", "Rect", 0.4, 0.73, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
@@ -963,7 +963,7 @@ def generatePlotTypes():
 			("Rect_Sea_Grain", "Ellipse", 0.2, 0.5, 0.8, 0.4 + fSeaSizeChange, 0, "water", ScatterGrain, ScatterGrain, 70, True),
 			("Rect_Sea_Grain 2", "Ellipse", 0.8, 0.5, 0.8, 0.4 + fSeaSizeChange, 180, "water", ScatterGrain, ScatterGrain, 70, True),
 		]
-		if island_opt == 1: # Enabled
+		if island_opt != 0: # Enabled
 			island_regions = [
 					("IslandsL", "Rect", 0.270, 0.5, 0.250, 0.250, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 					("IslandsR", "Rect", 0.730, 0.5, 0.250, 0.250, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
