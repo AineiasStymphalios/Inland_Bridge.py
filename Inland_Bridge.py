@@ -32,35 +32,37 @@ def isAdvancedMap():
 	return 1
 
 def getNumCustomMapOptions():
-	return 11
+	return 13
 
 def getCustomMapOptionName(argsList):
-    [iOption] = argsList
-    if iOption == 0:
-        return "Climate Details"
-    elif iOption == 1:
-        return "Hemisphere Option"
-    elif iOption == 2:
-        return "Axial Tilt"
-    elif iOption == 3:
-        return "World Wrap"
-    elif iOption == 4:
-        return "Geography"
-    elif iOption == 5:
-        return "Islands"
-    elif iOption == 6:
-        return "Two-tile Coasts"
-    elif iOption == 7:
-        return "Team Start"
-    elif iOption == 8:
-        return "Teamer Resource Balancing"
-    elif iOption == 9:
-        return "Debug Signs"
-    elif iOption == 10:
-        return "Land Food Across Map"
-    elif iOption == 11:
-        return "Reveal Start Area Radius"
-    return ""
+	[iOption] = argsList
+	if iOption == 0:
+		return "Climate Details"
+	elif iOption == 1:
+		return "Hemisphere Option"
+	elif iOption == 2:
+		return "Axial Tilt"
+	elif iOption == 3:
+		return "World Wrap"
+	elif iOption == 4:
+		return "Geography"
+	elif iOption == 5:
+		return "Islands"
+	elif iOption == 6:
+		return "Two-tile Coasts"
+	elif iOption == 7:
+		return "Team Start"
+	elif iOption == 8:
+		return "Teamer Resource Balancing"
+	elif iOption == 9:
+		return "Debug Signs"
+	elif iOption == 10:
+		return "Land Food Across Map"
+	elif iOption == 11:
+		return "Land Food on Starts"
+	elif iOption == 12:
+		return "Reveal Start Area Radius"
+	return ""
 
 def getNumCustomMapOptionValues(argsList):
 	[iOption] = argsList
@@ -69,13 +71,14 @@ def getNumCustomMapOptionValues(argsList):
 	elif iOption == 2: return 3 # Axial Tilt
 	elif iOption == 3: return 3 # World Wrap
 	elif iOption == 4: return 6 # Geography
-	elif iOption == 5: return 2 # Islands
+	elif iOption == 5: return 3 # Islands
 	elif iOption == 6: return 2 # Two-tile Coasts
 	elif iOption == 7: return 2 # Team Start (Start Together or Disabled)
 	elif iOption == 8: return 2 # Semistrategic resources
 	elif iOption == 9: return 2 # Debug Signs
 	elif iOption == 10: return 4 # Land Food Across Map
-	elif iOption == 11: return 4  # Radius
+	elif iOption == 11: return 4 # Land Food on Starts
+	elif iOption == 12: return 4 # Reveal Start Area Radius
 	return 0
 
 def getCustomMapOptionDescAt(argsList):
@@ -103,7 +106,8 @@ def getCustomMapOptionDescAt(argsList):
 		return "Two Shores (N-S)"
 	elif iOption == 5: # Islands
 		if iSelection == 0: return "Disabled"
-		return "Enabled"
+		elif iSelection == 1: return "Tiny Islands"
+		return "Clumped Islands"
 	elif iOption == 6: # Two-tile Coasts
 		if iSelection == 0: return "Enabled"
 		return "Disabled"
@@ -121,11 +125,16 @@ def getCustomMapOptionDescAt(argsList):
 		elif iSelection == 1: return "1 per 4x4 tiles"
 		elif iSelection == 2: return "1 per 5x5 tiles"
 		return "1 per 6x6 tiles"
-	elif iOption == 11:
-	    if iSelection == 0: return "Disabled"
-	    elif iSelection == 1: return "Radius 2"
-	    elif iSelection == 2: return "Radius 3"
-	    return "Radius 4"
+	elif iOption == 11: # Land Food on Starts
+		if iSelection == 0: return "Disabled"
+		elif iSelection == 1: return "At least 1"
+		elif iSelection == 2: return "At least 2"
+		return "At least 3"
+	elif iOption == 12: # Reveal Start Area Radius
+		if iSelection == 0: return "Disabled"
+		elif iSelection == 1: return "Radius 2"
+		elif iSelection == 2: return "Radius 3"
+		return "Radius 4"
 	return ""
 
 def getCustomMapOptionDefault(argsList):
@@ -152,8 +161,10 @@ def getCustomMapOptionDefault(argsList):
 		return 0
 	elif iOption == 10: # Land Food Across Map
 		return 2
-	elif iOption == 11: # default = Disabled
-		return 0  
+	elif iOption == 11: # Land Food on Starts
+		return 1
+	elif iOption == 12: # Reveal Start Area Radius
+		return 0
 	return 0
 
 ########################################
@@ -561,6 +572,62 @@ class GeometricMultiFractal(CvMapGeneratorUtil.MultilayeredFractal):
 	Fractal generator supporting geometric masking and rotation.
 	Shapes: RECT, ELLIPSE, ISOTRI.
 	"""
+	def getReducedEdgeWaterThreshold(self, r_type, water_prc, iWaterThreshold, iWaterThresholds,
+	                                 rx, ry, invRxSq, invRySq, radius_x, radius_y,
+	                                 height_tiles, b_dist, v_dist, max_rx, bIsSubtractive):
+		# shape_fill runs from 0.0 at center to 1.0 at edge.
+		# CenterInner/Outer set center range; higher values spread it outward. Multiplier sets strength.
+		# EdgeInner/Outer set taper range; higher values tighten it to the edge. Multiplier sets strength.
+		# IsotriEdgeBand sets triangular taper depth; lower values tighten it to the edge.
+		fCenterInner = 0.0
+		fCenterOuter = 0.3
+		fCenterMultiplier = 2.0
+		fEdgeInner = 0.80
+		fEdgeOuter = 1.00
+		fEdgeMultiplier = 3.0
+		fIsotriEdgeBand = 0.20
+		edgeStrength = 0.0
+		centerStrength = 0.0
+		shape_fill = 0.0
+		if r_type == "ELLIPSE":
+			shape_fill = math.sqrt((rx*rx * invRxSq) + (ry*ry * invRySq))
+		elif r_type == "ISOTRI":
+			edgeBand = min(radius_x, height_tiles) * fIsotriEdgeBand
+			edgeMargin = min(ry + b_dist, v_dist - ry, max_rx - abs(rx))
+			if edgeBand <= 0:
+				shape_fill = 1.0
+			else:
+				shape_fill = 1.0 - (edgeMargin / edgeBand)
+		else:
+			if radius_x > 0: shape_fill = abs(rx) / radius_x
+			if radius_y > 0:
+				y_fill = abs(ry) / radius_y
+				if y_fill > shape_fill: shape_fill = y_fill
+		if shape_fill < fCenterInner:
+			centerStrength = 1.0 * fCenterMultiplier
+		elif shape_fill < fCenterOuter:
+			if fCenterOuter > fCenterInner:
+				centerStrength = ((fCenterOuter - shape_fill) / (fCenterOuter - fCenterInner)) * fCenterMultiplier
+		if shape_fill > fEdgeInner:
+			if fEdgeOuter > fEdgeInner:
+				edgeStrength = ((shape_fill - fEdgeInner) / (fEdgeOuter - fEdgeInner)) * fEdgeMultiplier
+		if edgeStrength > 1.0: edgeStrength = 1.0
+		if centerStrength > 1.0: centerStrength = 1.0
+		if edgeStrength > 0.0:
+			if bIsSubtractive:
+				iLocalWaterPercent = int(water_prc * (1.0 - edgeStrength))
+			else:
+				iLocalWaterPercent = water_prc + int((100 - water_prc) * edgeStrength)
+			return iWaterThresholds[iLocalWaterPercent]
+		elif centerStrength > 0.0:
+			if bIsSubtractive:
+				iLocalWaterPercent = water_prc + int((100 - water_prc) * centerStrength)
+			else:
+				iLocalWaterPercent = int(water_prc * (1.0 - centerStrength))
+			return iWaterThresholds[iLocalWaterPercent]
+
+		return iWaterThreshold
+
 	def generatePlotsByRegion(self, region_data):
 		sea = 0 
 		
@@ -586,7 +653,7 @@ class GeometricMultiFractal(CvMapGeneratorUtil.MultilayeredFractal):
 				terrain_profiles[key] = (new_h, new_p)
 
 		for data in region_data:
-			name, r_type_raw, cx, cy, d1, d2, d3, terrain, grain, h_grain, water_prc = data
+			name, r_type_raw, cx, cy, d1, d2, d3, terrain, grain, h_grain, water_prc, bReduceEdges = data
 			r_type = r_type_raw.upper()
 			
 			# 1. Coordinate Math
@@ -621,6 +688,14 @@ class GeometricMultiFractal(CvMapGeneratorUtil.MultilayeredFractal):
 				iWaterThreshold = regionContFrac.getHeightFromPercent(water_prc + sea)
 
 			is_subtractive = (terrain == "water")
+			bUseReducedEdges = False
+			if bReduceEdges and water_prc > 0:
+				if is_subtractive or water_prc < 100:
+					bUseReducedEdges = True
+			iWaterThresholds = []
+			if bUseReducedEdges:
+				for iPercent in range(101):
+					iWaterThresholds.append(regionContFrac.getHeightFromPercent(iPercent))
 			
 			# Only Land regions need Hill/Peak fractals
 			if not is_subtractive:
@@ -657,6 +732,7 @@ class GeometricMultiFractal(CvMapGeneratorUtil.MultilayeredFractal):
 					rx = dx * cosA - dy * sinA
 					ry = dx * sinA + dy * cosA
 					is_inside = False
+					max_rx = 0.0
 					if r_type == "ELLIPSE":
 						if (rx*rx * invRxSq) + (ry*ry * invRySq) <= 1.0: is_inside = True
 					elif r_type == "ISOTRI":
@@ -671,15 +747,21 @@ class GeometricMultiFractal(CvMapGeneratorUtil.MultilayeredFractal):
 					# Decide plot type
 					world_i = world_y * self.iW + world_x
 					val = regionContFrac.getHeight(x, y)
+					iLocalWaterThreshold = iWaterThreshold
+					if bUseReducedEdges:
+						iLocalWaterThreshold = self.getReducedEdgeWaterThreshold(
+							r_type, water_prc, iWaterThreshold, iWaterThresholds,
+							rx, ry, invRxSq, invRySq, radius_x, radius_y,
+							height_tiles, b_dist, v_dist, max_rx, is_subtractive)
 					
 					if is_subtractive:
 						# WATER REGION: If fractal roll is within the water percent, punch a hole.
 						# Setting water_prc=100 will now correctly turn every tile to ocean.
-						if val <= iWaterThreshold:
+						if val <= iLocalWaterThreshold:
 							self.wholeworldPlotTypes[world_i] = PlotTypes.PLOT_OCEAN
 					else:
 						# LAND REGION: Skip tiles within the water percent threshold (remains ocean).
-						if val <= iWaterThreshold: 
+						if val <= iLocalWaterThreshold: 
 							continue
 						
 						# Process Hills and Peaks for land
@@ -797,93 +879,78 @@ def generatePlotTypes():
 	(ScatterGrain, BalanceGrain, GatherGrain) = sizevalues[sizekey]
 	ZeroGrain = 0
 
-	# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
+	# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
 	regions = [
-			("Rect3", "Rect", 0.500, 0.5, 1.000, 1.000, 0, "default", BalanceGrain, ScatterGrain+1, 0),
+			("Rect3", "Rect", 0.500, 0.5, 1.000, 1.000, 0, "default", BalanceGrain, ScatterGrain+1, 0, False),
 		]
-	if geography_opt == 0 or geography_opt == 3: # Two Seas / (Corner seas)
+	if geography_opt == 0: # Two Seas
 		bEnforceLandEdge = 1
-		# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
+		# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
 		base_regions = [
-			("Ellipse_Sea_R_BG", "Ellipse", 0.730, 0.500, 0.3, 0.4, 0, "water", BalanceGrain, ScatterGrain, 100),
-			("Ellipse_Sea_R", "Ellipse", 0.730, 0.5, 0.4 + fSeaSizeChange, 0.5 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 70),
-			("Ellipse_Sea_L_BG", "Ellipse", 0.270, 0.500, 0.3, 0.4, 0, "water", BalanceGrain, ScatterGrain, 100),
-			("Ellipse_Sea_L", "Ellipse", 0.270, 0.5, 0.4 + fSeaSizeChange, 0.5 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 70),
-			("Bridge", "Ellipse", 0.500, 0.500, 0.170, 0.200, 0, "default", GatherGrain, ScatterGrain, 10),
+			("Ellipse_Sea_R_BG", "Ellipse", 0.730, 0.500, 0.3, 0.45, 0, "water", BalanceGrain, ScatterGrain, 100, True),
+			("Ellipse_Sea_R", "Ellipse", 0.730, 0.5, 0.43 + fSeaSizeChange, 0.55 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 70, True),
+			("Ellipse_Sea_L_BG", "Ellipse", 0.270, 0.500, 0.3, 0.45, 0, "water", BalanceGrain, ScatterGrain, 100, True),
+			("Ellipse_Sea_L", "Ellipse", 0.270, 0.5, 0.43 + fSeaSizeChange, 0.55 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 70, True),
+			("Bridge", "Ellipse", 0.500, 0.500, 0.170, 0.200, 0, "default", GatherGrain, ScatterGrain, 10, False),
 		]
-		if island_opt == 1: # Enabled
-			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
+		if island_opt == 1: # Tiny
+			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
 			island_regions = [
-				("IslandsTL", "Rect", 0.270, 0.60, 0.170, 0.170, 0, "flat", ScatterGrain, ScatterGrain, 80),
-				("IslandsTR", "Rect", 0.730, 0.60, 0.170, 0.170, 0, "flat", ScatterGrain, ScatterGrain, 80),
-				("IslandsBL", "Rect", 0.270, 0.40, 0.170, 0.170, 0, "flat", ScatterGrain, ScatterGrain, 80),
-				("IslandsBR", "Rect", 0.730, 0.40, 0.170, 0.170, 0, "flat", ScatterGrain, ScatterGrain, 80),
+				("IslandsTL", "Rect", 0.270, 0.60, 0.170, 0.170, 0, "flat", ScatterGrain, ScatterGrain, 85, False),
+				("IslandsTR", "Rect", 0.730, 0.60, 0.170, 0.170, 0, "flat", ScatterGrain, ScatterGrain, 85, False),
+				("IslandsBL", "Rect", 0.270, 0.40, 0.170, 0.170, 0, "flat", ScatterGrain, ScatterGrain, 85, False),
+				("IslandsBR", "Rect", 0.730, 0.40, 0.170, 0.170, 0, "flat", ScatterGrain, ScatterGrain, 85, False),
 			]
-		if geography_opt == 3:
-			additional_regions = [
-				("Water_NE", "Ellipse", 1.000, 1.000, 0.200, 0.200, 0, "water", BalanceGrain, ScatterGrain, 95),
-				("Water_NW", "Ellipse", 0.000, 1.000, 0.200, 0.200, 0, "water", BalanceGrain, ScatterGrain, 95),
-				("Water_SE", "Ellipse", 1.000, 0.000, 0.200, 0.200, 0, "water", BalanceGrain, ScatterGrain, 95),
-				("Water_SE", "Ellipse", 0.000, 0.000, 0.200, 0.200, 0, "water", BalanceGrain, ScatterGrain, 95),
-			]
-	elif geography_opt == 1: # Infinite Sea
-		bEnforceLandEdge = 1
-		# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
-		base_regions = [
-			("Ellipse_Sea_R_BG", "Ellipse", 0.730, 0.500, 0.3, 0.4, 0, "water", BalanceGrain, ScatterGrain, 100),
-			("Ellipse_Sea_L_BG", "Ellipse", 0.270, 0.500, 0.3, 0.4, 0, "water", BalanceGrain, ScatterGrain, 100),
-			("Ellipse_Sea_R", "Ellipse", 0.730, 0.500, 0.375 + fSeaSizeChange, 0.650 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 70),
-			("Ellipse_Sea_L", "Ellipse", 0.270, 0.500, 0.375 + fSeaSizeChange, 0.650 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 70),
-			("Bridge", "Ellipse", 0.500, 0.500, 0.170, 0.200, 0, "water", GatherGrain, ScatterGrain, 90),
-		]
-		if island_opt == 1: # Enabled
-			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
+		elif island_opt == 2: # Normal
+			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
 			island_regions = [
-				("IslandsCL", "Ellipse", 0.280, 0.500, 0.170, 0.200, 0, "default", BalanceGrain, ScatterGrain, 10 + iWaterPercentChange),
-				("IslandsCR", "Ellipse", 0.720, 0.500, 0.170, 0.200, 0, "default", BalanceGrain, ScatterGrain, 10 + iWaterPercentChange),
+				("IslandsTL", "Rect", 0.270, 0.58, 0.15, 0.1, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
+				("IslandsTR", "Rect", 0.730, 0.58, 0.15, 0.1, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
+				("IslandsBL", "Rect", 0.270, 0.42, 0.15, 0.1, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
+				("IslandsBR", "Rect", 0.730, 0.42, 0.15, 0.1, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
 			]
-	elif geography_opt == 2: # Infinite Sea# Hourglass
+	elif geography_opt == 2: # Hourglass
 		bEnforceLandEdge = 0
-		# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
+		# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
 		base_regions = [
-			("Ellipse_Sea_L", "Ellipse", 0.95, 0.500, 0.500 + fSeaSizeChange*1.5, 0.850 + fSeaSizeChange*2.5, 0, "water", BalanceGrain, ScatterGrain, 90),
-			("Ellipse_Sea_R", "Ellipse", 0.050, 0.500, 0.500 + fSeaSizeChange*1.5, 0.850 + fSeaSizeChange*2.5, 0, "water", BalanceGrain, ScatterGrain, 90),
-			("Ellipse_small_seaL", "Ellipse", 0.250, 0.500, 0.300 + fSeaSizeChange*0.5, 0.400 + fSeaSizeChange*0.5, 0, "water", BalanceGrain, ScatterGrain, 85),
-			("Ellipse_small_seaR", "Ellipse", 0.750, 0.500, 0.300 + fSeaSizeChange*0.5, 0.400 + fSeaSizeChange*0.5, 0, "water", BalanceGrain, ScatterGrain, 85),
+			("Ellipse_Sea_L", "Ellipse", 0.95, 0.500, 0.500 + fSeaSizeChange*1.5, 0.850 + fSeaSizeChange*2.5, 0, "water", BalanceGrain, ScatterGrain, 90, True),
+			("Ellipse_Sea_R", "Ellipse", 0.050, 0.500, 0.500 + fSeaSizeChange*1.5, 0.850 + fSeaSizeChange*2.5, 0, "water", BalanceGrain, ScatterGrain, 90, True),
+			("Ellipse_small_seaL", "Ellipse", 0.250, 0.500, 0.300 + fSeaSizeChange*0.5, 0.400 + fSeaSizeChange*0.5, 0, "water", BalanceGrain, ScatterGrain, 85, True),
+			("Ellipse_small_seaR", "Ellipse", 0.750, 0.500, 0.300 + fSeaSizeChange*0.5, 0.400 + fSeaSizeChange*0.5, 0, "water", BalanceGrain, ScatterGrain, 85, True),
 		]
 		if island_opt == 1: # Enabled
-			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%
+			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
 			island_regions = [
-				("IslandsTL", "Rect", 0.100, 0.650, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
-				("IslandsTR", "Rect", 0.900, 0.650, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
-				("IslandsBL", "Rect", 0.100, 0.350, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
-				("IslandsBR", "Rect", 0.900, 0.350, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
+				("IslandsTL", "Rect", 0.100, 0.650, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
+				("IslandsTR", "Rect", 0.900, 0.650, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
+				("IslandsBL", "Rect", 0.100, 0.350, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
+				("IslandsBR", "Rect", 0.900, 0.350, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 			]
 	elif geography_opt == 4: # Two Shores (EW)
 		bEnforceLandEdge = 0
 		base_regions =[
-			("Rect_Sea_Base", "Rect", 0.500, 0.500, 0.200 + fSeaSizeChange, 1.000, 0, "water", BalanceGrain, ScatterGrain, 100),
-			("Rect_Sea_Grain", "Ellipse", 0.500, 0.200, 0.400 + fSeaSizeChange, 0.800, 0, "water", BalanceGrain, ScatterGrain, 70),
-			("Rect_Sea_Grain 2", "Ellipse", 0.500, 0.800, 0.400 + fSeaSizeChange, 0.800, 180, "water", BalanceGrain, ScatterGrain, 70),
+			("Rect_Sea_Base", "Rect", 0.500, 0.500, 0.200 + fSeaSizeChange, 1.000, 0, "water", BalanceGrain, ScatterGrain, 100, True),
+			("Rect_Sea_Grain", "Ellipse", 0.500, 0.200, 0.400 + fSeaSizeChange, 0.800, 0, "water", BalanceGrain, ScatterGrain, 70, True),
+			("Rect_Sea_Grain 2", "Ellipse", 0.500, 0.800, 0.400 + fSeaSizeChange, 0.800, 180, "water", BalanceGrain, ScatterGrain, 70, True),
 		]
 		if island_opt == 1: # Enabled
 			island_regions = [
-					("IslandsBL", "Rect", 0.4, 0.27, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
-					("IslandsTL", "Rect", 0.4, 0.73, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
-					("IslandsBR", "Rect", 0.6, 0.27, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
-					("IslandsTR", "Rect", 0.6, 0.73, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
+					("IslandsBL", "Rect", 0.4, 0.27, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
+					("IslandsTL", "Rect", 0.4, 0.73, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
+					("IslandsBR", "Rect", 0.6, 0.27, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
+					("IslandsTR", "Rect", 0.6, 0.73, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 				]
 	else: # Two Shores (NS)
 		bEnforceLandEdge = 0
 		base_regions = [
-			("Rect_Sea_Base", "Rect", 0.500, 0.500, 1, 0.2 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 100),
-			("Rect_Sea_Grain", "Ellipse", 0.2, 0.5, 0.8, 0.4 + fSeaSizeChange, 0, "water", ScatterGrain, ScatterGrain, 70),
-			("Rect_Sea_Grain 2", "Ellipse", 0.8, 0.5, 0.8, 0.4 + fSeaSizeChange, 180, "water", ScatterGrain, ScatterGrain, 70),
+			("Rect_Sea_Base", "Rect", 0.500, 0.500, 1, 0.2 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 100, True),
+			("Rect_Sea_Grain", "Ellipse", 0.2, 0.5, 0.8, 0.4 + fSeaSizeChange, 0, "water", ScatterGrain, ScatterGrain, 70, True),
+			("Rect_Sea_Grain 2", "Ellipse", 0.8, 0.5, 0.8, 0.4 + fSeaSizeChange, 180, "water", ScatterGrain, ScatterGrain, 70, True),
 		]
 		if island_opt == 1: # Enabled
 			island_regions = [
-					("IslandsL", "Rect", 0.270, 0.5, 0.250, 0.250, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
-					("IslandsR", "Rect", 0.730, 0.5, 0.250, 0.250, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange),
+					("IslandsL", "Rect", 0.270, 0.5, 0.250, 0.250, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
+					("IslandsR", "Rect", 0.730, 0.5, 0.250, 0.250, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 				]
 
 	regions.extend(base_regions)
@@ -1401,6 +1468,24 @@ class ResourceManager:
 			return True
 		return startLookup.has_key((pPlot.getX(), pPlot.getY()))
 
+	def _has_adjacent_bonus(self, pPlot):
+		directions = (
+			DirectionTypes.DIRECTION_NORTH,
+			DirectionTypes.DIRECTION_NORTHEAST,
+			DirectionTypes.DIRECTION_EAST,
+			DirectionTypes.DIRECTION_SOUTHEAST,
+			DirectionTypes.DIRECTION_SOUTH,
+			DirectionTypes.DIRECTION_SOUTHWEST,
+			DirectionTypes.DIRECTION_WEST,
+			DirectionTypes.DIRECTION_NORTHWEST
+		)
+		for eDirection in directions:
+			pAdjacent = plotDirection(pPlot.getX(), pPlot.getY(), eDirection)
+			if pAdjacent is None: continue
+			if pAdjacent.isNone(): continue
+			if pAdjacent.getBonusType(-1) != -1: return True
+		return False
+
 	def _valid_bonus_plots(self, region_plots, iBonus):
 		validPlots = []
 		startLookup = self._start_plot_lookup()
@@ -1600,6 +1685,7 @@ class ResourceManager:
 					if pPlot.getBonusType(-1) != -1: continue
 					if pPlot.isWater() or pPlot.isPeak(): continue
 					if self._is_player_start_plot(pPlot, startLookup): continue
+					if self._has_adjacent_bonus(pPlot): continue
 					for iBonus in shuffledBonusIDs:
 						if pPlot.canHaveBonus(iBonus, True):
 							pPlot.setBonusType(iBonus)
@@ -1614,6 +1700,107 @@ class ResourceManager:
 					iBlocked += 1
 
 		print "IB map food scan: checked %d blocks, satisfied %d, placed %d, blocked %d" % (iBlocksChecked, iBlocksSatisfied, iPlaced, iBlocked)
+
+	def place_bonus_in_BFC(self, bonusNames, iTargetCount, bCheckExisting):
+		if iTargetCount <= 0:
+			return
+
+		bonusIDs = self._bonus_ids_from_names(bonusNames)
+		iPlains = self.gc.getInfoTypeForString("TERRAIN_PLAINS")
+		iFloodplains = self.gc.getInfoTypeForString("FEATURE_FLOOD_PLAINS")
+
+		bfcOffsets = []
+		for dx in range(-2, 3):
+			for dy in range(-2, 3):
+				if dx == 0 and dy == 0: continue
+				if abs(dx) == 2 and abs(dy) == 2: continue
+				bfcOffsets.append((dx, dy))
+
+		for iPlayer in range(self.gc.getMAX_CIV_PLAYERS()):
+			pPlayer = self.gc.getPlayer(iPlayer)
+			if not pPlayer.isEverAlive(): continue
+			pStart = pPlayer.getStartingPlot()
+			if pStart is None: continue
+			if pStart.isNone(): continue
+			iStartArea = pStart.getArea()
+
+			iExisting = 0
+			if bCheckExisting:
+				for dx, dy in bfcOffsets:
+					x = pStart.getX() + dx
+					y = pStart.getY() + dy
+					if x < 0 or x >= self.iW: continue
+					if y < 0 or y >= self.iH: continue
+					pPlot = self.map.plot(x, y)
+					if pPlot.getArea() != iStartArea: continue
+					if pPlot.isStartingPlot(): continue
+					if pPlot.getBonusType(-1) in bonusIDs:
+						iExisting += 1
+
+			iNeeded = iTargetCount - iExisting
+			for i in range(iNeeded):
+				shuffledBonusIDs = self._shuffle_list(bonusIDs, "IB Start Bonus Shuffle")
+				bPlaced = False
+
+				for iBonus in shuffledBonusIDs:
+					validPlots = []
+					for dx, dy in bfcOffsets:
+						x = pStart.getX() + dx
+						y = pStart.getY() + dy
+						if x < 0 or x >= self.iW: continue
+						if y < 0 or y >= self.iH: continue
+						pPlot = self.map.plot(x, y)
+						if pPlot.getArea() != iStartArea: continue
+						if pPlot.isStartingPlot(): continue
+						if pPlot.getBonusType(-1) != -1: continue
+						if pPlot.isWater() or pPlot.isPeak(): continue
+						if self._is_bonus_appropriate_for_plot(iBonus, pPlot):
+							validPlots.append(pPlot)
+
+					if len(validPlots) > 0:
+						pTarget = validPlots[self.dice.get(len(validPlots), "IB Start Bonus Plot")]
+						iFeature = pTarget.getFeatureType()
+						if iFeature != -1 and iFeature != iFloodplains:
+							if not pTarget.canHaveBonus(iBonus, True):
+								pTarget.setFeatureType(FeatureTypes.NO_FEATURE, -1)
+						pTarget.setBonusType(iBonus)
+						self._debug_sign(pTarget, "IB start bonus P%d %s" % (iPlayer, self._bonus_name_from_id(iBonus)))
+						bPlaced = True
+						break
+
+				if not bPlaced:
+					emergencyPlots = []
+					for dx, dy in bfcOffsets:
+						x = pStart.getX() + dx
+						y = pStart.getY() + dy
+						if x < 0 or x >= self.iW: continue
+						if y < 0 or y >= self.iH: continue
+						pPlot = self.map.plot(x, y)
+						if pPlot.getArea() != iStartArea: continue
+						if pPlot.isStartingPlot(): continue
+						if pPlot.getBonusType(-1) != -1: continue
+						if pPlot.isWater() or pPlot.isPeak(): continue
+						if pPlot.calculateNatureYield(YieldTypes.YIELD_FOOD, TeamTypes.NO_TEAM, False) == 0:
+							emergencyPlots.append(pPlot)
+						elif pPlot.getFeatureType() == iFloodplains:
+							emergencyPlots.append(pPlot)
+
+					if len(emergencyPlots) > 0:
+						pTarget = emergencyPlots[self.dice.get(len(emergencyPlots), "IB Start Bonus Emergency Plot")]
+						pTarget.setPlotType(PlotTypes.PLOT_LAND, True, True)
+						pTarget.setTerrainType(iPlains, True, True)
+						pTarget.setFeatureType(FeatureTypes.NO_FEATURE, -1)
+
+						for iBonus in shuffledBonusIDs:
+							if self._is_bonus_appropriate_for_plot(iBonus, pTarget):
+								pTarget.setBonusType(iBonus)
+								self._debug_sign(pTarget, "IB emergency start bonus P%d %s" % (iPlayer, self._bonus_name_from_id(iBonus)))
+								bPlaced = True
+								break
+
+						if not bPlaced:
+							pTarget.setBonusType(shuffledBonusIDs[0])
+							self._debug_sign(pTarget, "IB fallback start bonus P%d %s" % (iPlayer, self._bonus_name_from_id(shuffledBonusIDs[0])))
 
 	def _fallback_bonus_plots(self, region_plots, iBonus, bMatchPlotType):
 		bWaterBonus = self._bonus_is_water(iBonus)
@@ -1734,37 +1921,30 @@ class ResourceManager:
 		# Return the number of bonus types attempted, not the number of copies
 		# successfully placed.
 		return iAttempted
+
+
 def revealStartingArea(iRadius=3):
 	gc = CyGlobalContext()
 	map = CyMap()
-	
+	iW = map.getGridWidth()
+	iH = map.getGridHeight()
 	for iPlayer in range(gc.getMAX_CIV_PLAYERS()):
 		pPlayer = gc.getPlayer(iPlayer)
-
-		if not pPlayer.isEverAlive():
-			continue
-
+		if not pPlayer.isEverAlive(): continue
 		pStart = pPlayer.getStartingPlot()
-		if pStart is None or pStart.isNone():
-			continue
-
+		if pStart is None: continue
+		if pStart.isNone(): continue
 		iTeam = pPlayer.getTeam()
 		sx = pStart.getX()
 		sy = pStart.getY()
-
 		for dx in range(-iRadius, iRadius + 1):
 			for dy in range(-iRadius, iRadius + 1):
 				nx = sx + dx
 				ny = sy + dy
-
-				if nx < 0 or nx >= map.getGridWidth():
-					continue
-				if ny < 0 or ny >= map.getGridHeight():
-					continue
-
+				if nx < 0 or nx >= iW: continue
+				if ny < 0 or ny >= iH: continue
 				if plotDistance(sx, sy, nx, ny) <= iRadius:
 					map.plot(nx, ny).setRevealed(iTeam, True, False, -1)
-
 
 def normalizeAddExtras():
 	gc = CyGlobalContext()
@@ -1774,18 +1954,13 @@ def normalizeAddExtras():
 	map.recalculateAreas()
 	# Instantiate the Generalized Manager
 	rm = ResourceManager(map, gc, dice)
-	iRevealOption = map.getCustomMapOption(11)
-	iRevealRadius = 0
-
-	if iRevealOption == 1:
-		iRevealRadius = 2
-	elif iRevealOption == 2:
-		iRevealRadius = 3
-	elif iRevealOption == 3:
-		iRevealRadius = 4
+	
 	bTeamerBalancingOption = map.getCustomMapOption(8)
 	iMapFoodOption = map.getCustomMapOption(10)
+	iStartFoodOption = map.getCustomMapOption(11)
+	
 	LandFoodBonus = ["BONUS_WHEAT", "BONUS_RICE", "BONUS_CORN", "BONUS_COW", "BONUS_SHEEP", "BONUS_PIG", "BONUS_DEER", "BONUS_BANANA"]
+	StartLandFoodBonus = ["BONUS_WHEAT", "BONUS_RICE", "BONUS_CORN", "BONUS_COW", "BONUS_SHEEP", "BONUS_PIG"]
 	
 	# bTeamPlacement is our global variable from the start plot logic
 	if bTeamPlacement and bTeamerBalancingOption == 1:
@@ -1795,7 +1970,7 @@ def normalizeAddExtras():
 		SemiStrategics = ["BONUS_IVORY", "BONUS_STONE", "BONUS_MARBLE"]
 		PreciousMetals = ["BONUS_GOLD", "BONUS_SILVER", "BONUS_GEMS"]
 		EarlyHappiness = ["BONUS_FUR", "BONUS_WINE"]
-		CalendarBonus = ["BONUS_SPICES", "BONUS_SUGAR", "BONUS_BANANA", "BONUS_DYE", "BONUS_INCENSE", "BONUS_SILK"]
+		CalendarBonus = ["BONUS_SPICES", "BONUS_SUGAR", "BONUS_DYE", "BONUS_INCENSE", "BONUS_SILK"]
 		WaterBonus = ["BONUS_CRAB", "BONUS_WHALE"]
 
 		# 1. Global Swap
@@ -1826,5 +2001,21 @@ def normalizeAddExtras():
 	if iMapFoodOption != 0:
 		print "PY: Inland Bridge ensuring mapwide land food bonuses..."
 		rm.ensure_bonus_per_grid(LandFoodBonus, iMapFoodOption + 3)
+	if iStartFoodOption > 0:
+		print "PY: Inland Bridge adding starting plot food bonuses..."
+		rm.place_bonus_in_BFC(StartLandFoodBonus, iStartFoodOption, True)
+	
+	
+	# Map reveal option
+	iRevealOption = map.getCustomMapOption(12)
+	iRevealRadius = 0
+	if iRevealOption == 1:
+		iRevealRadius = 2
+	elif iRevealOption == 2:
+		iRevealRadius = 3
+	elif iRevealOption == 3:
+		iRevealRadius = 4
+	
 	if iRevealRadius > 0:
 		revealStartingArea(iRevealRadius)
+
