@@ -293,6 +293,18 @@ def _get_largest_land_area_in_bounds(map, xMin, xMax, yMin, yMax):
 
 	return bestAreaID
 
+def _is_prohibited_start_bonus(pPlot, gc):
+	ProhibitedStartBonusIDs = ['BONUS_WHEAT', 'BONUS_RICE', 'BONUS_CORN', 'BONUS_COW', 'BONUS_SHEEP', 'BONUS_PIG', 'BONUS_DEER']
+
+	iBonus = pPlot.getBonusType(-1)
+	if iBonus == -1:
+		return False
+	for bonusName in ProhibitedStartBonusIDs:
+		iProhibited = gc.getInfoTypeForString(bonusName)
+		if iProhibited != -1 and iBonus == iProhibited:
+			return True
+	return False
+
 def _assign_all_starting_plots():
 	gc = CyGlobalContext()
 	map = CyMap()
@@ -428,6 +440,7 @@ def _assign_all_starting_plots():
 							pPlot = map.plot(x, y)
 							if pPlot.isWater() or pPlot.isPeak(): continue
 							if teamAreaID != -1 and pPlot.getArea() != teamAreaID: continue
+							if _is_prohibited_start_bonus(pPlot, gc): continue
 							
 							tooClose = False
 							for (ax, ay) in assigned_plots:
@@ -463,6 +476,7 @@ def _assign_all_starting_plots():
 						pPlot = map.plot(x, y)
 						if not pPlot.isWater() and not pPlot.isPeak():
 							if teamAreaID != -1 and pPlot.getArea() != teamAreaID: continue
+							if _is_prohibited_start_bonus(pPlot, gc): continue
 							tooClose = False
 							for (ax, ay) in assigned_plots:
 								if plotDistance(x, y, ax, ay) < 5:
