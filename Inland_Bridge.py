@@ -32,7 +32,7 @@ def isAdvancedMap():
 	return 1
 
 def getNumCustomMapOptions():
-	return 13
+	return 14
 
 def getCustomMapOptionName(argsList):
 	[iOption] = argsList
@@ -62,6 +62,8 @@ def getCustomMapOptionName(argsList):
 		return "Land Food on Starts"
 	elif iOption == 12:
 		return "Reveal Start Area Radius"
+	elif iOption == 13:
+		return "Strategic Resources Near Starts"
 	return ""
 
 def getNumCustomMapOptionValues(argsList):
@@ -79,6 +81,7 @@ def getNumCustomMapOptionValues(argsList):
 	elif iOption == 10: return 4 # Land Food Across Map
 	elif iOption == 11: return 4 # Land Food on Starts
 	elif iOption == 12: return 4 # Reveal Start Area Radius
+	elif iOption == 13: return 3 # Strategic Resources Near Starts
 	return 0
 
 def getCustomMapOptionDescAt(argsList):
@@ -135,6 +138,10 @@ def getCustomMapOptionDescAt(argsList):
 		elif iSelection == 1: return "Radius 2"
 		elif iSelection == 2: return "Radius 3"
 		return "Radius 4"
+	elif iOption == 13: # Strategic Resources Near Starts
+		if iSelection == 0: return "Disabled"
+		elif iSelection == 1: return "Ensure Iron + Copper OR Horse"
+		return "Ensure Iron + Copper + Horse"
 	return ""
 
 def getCustomMapOptionDefault(argsList):
@@ -165,6 +172,8 @@ def getCustomMapOptionDefault(argsList):
 		return 1
 	elif iOption == 12: # Reveal Start Area Radius
 		return 0
+	elif iOption == 13: # Strategic Resources Near Starts
+		return 1
 	return 0
 
 ########################################
@@ -1339,7 +1348,9 @@ def getRiverAltitude(argsList):
 # Custom Resource Options
 ########################################
 class ResourceManager:
+	# Core utilities
 	def __init__(self, map_obj, gc, dice):
+		"Store map context and read debug sign option."
 		self.map = map_obj
 		self.gc = gc
 		self.dice = dice
@@ -1349,18 +1360,22 @@ class ResourceManager:
 		self.bDebugSignsEnabled = (map_obj.getCustomMapOption(9) == 1)
 
 	def _bonus_id(self, name):
+		"Return the XML info id for a bonus name."
 		return self.gc.getInfoTypeForString(name)
 
 	def _bonus_name_from_id(self, iBonus):
+		"Return the XML bonus name for an info id."
 		return self.gc.getBonusInfo(iBonus).getType()
 
 	def _debug_sign(self, pPlot, msg):
+		"Add a map sign when debug signs are enabled."
 		if not self.bDebugSignsEnabled: return
 		if pPlot is None: return
 		if pPlot.isNone(): return
 		self.engine.addSign(pPlot, -1, msg)
 
 	def _shuffle_list(self, source_list, log_label):
+		"Return a shuffled copy using the map random stream."
 		shuffled = []
 		for item in source_list:
 			shuffled.append(item)
@@ -1374,6 +1389,7 @@ class ResourceManager:
 		return shuffled
 
 	def _bonus_ids_from_names(self, bonusNames):
+		"Convert bonus XML names to info ids."
 		bonusIDs = []
 		for bonusName in bonusNames:
 			bonusIDs.append(self._bonus_id(bonusName))
@@ -1391,7 +1407,9 @@ class ResourceManager:
 			if pPlot.getBonusType(-1) == iTarget:
 				pPlot.setBonusType(iReplace)
 
+	# Player and start plot helpers
 	def _get_player_count_for_team(self, iTeam):
+		"Return the number of living players on a team."
 		iCount = 0
 		for iPlayer in range(self.gc.getMAX_CIV_PLAYERS()):
 			pPlayer = self.gc.getPlayer(iPlayer)
@@ -1400,6 +1418,7 @@ class ResourceManager:
 		return iCount
 
 	def _get_team_region_plots(self, iTeam):
+		"Return all plots in a team assigned region."
 		global teamHalfMap, northThreshold, southThreshold
 
 		plots = []
@@ -1441,7 +1460,38 @@ class ResourceManager:
 
 		return plots
 
+	def _plot_in_team_region(self, pPlot, iTeam):
+		"Return true when a plot is inside a team assigned region."
+		global teamHalfMap, northThreshold, southThreshold
+
+		if not teamHalfMap.has_key(iTeam):
+			return False
+
+		region = teamHalfMap[iTeam]
+		x = pPlot.getX()
+		y = pPlot.getY()
+
+		if region == 0:
+			return y >= northThreshold
+		elif region == 1:
+			return y < southThreshold
+		elif region == 2:
+			return x < int(self.iW * 0.3)
+		elif region == 3:
+			return x >= int(self.iW * 0.7)
+		elif region == 10:
+			return x < int(self.iW * 0.3) and y < int(self.iH * 0.3)
+		elif region == 11:
+			return x >= int(self.iW * 0.7) and y < int(self.iH * 0.3)
+		elif region == 12:
+			return x < int(self.iW * 0.3) and y >= int(self.iH * 0.7)
+		elif region == 13:
+			return x >= int(self.iW * 0.7) and y >= int(self.iH * 0.7)
+
+		return False
+
 	def _get_team_start_radius_plots(self, iTeam, radius):
+		"Return unique plots near all starts on a team."
 		plots = []
 		used = {}
 
@@ -1470,20 +1520,8 @@ class ResourceManager:
 
 		return plots
 
-	def _present_bonus_types(self, region_plots, bonusIDs):
-		wanted = {}
-		for iBonus in bonusIDs:
-			wanted[iBonus] = 1
-
-		present = {}
-		for pPlot in region_plots:
-			iBonus = pPlot.getBonusType(-1)
-			if wanted.has_key(iBonus):
-				present[iBonus] = 1
-
-		return present.keys()
-
 	def _start_plot_lookup(self):
+		"Return actual living-player start coordinates."
 		startLookup = {}
 		for i in range(self.gc.getMAX_CIV_PLAYERS()):
 			player = self.gc.getPlayer(i)
@@ -1494,11 +1532,14 @@ class ResourceManager:
 		return startLookup
 
 	def _is_player_start_plot(self, pPlot, startLookup):
+		"Return true for flagged or actual player starts."
 		if pPlot.isStartingPlot():
 			return True
 		return startLookup.has_key((pPlot.getX(), pPlot.getY()))
 
+	# Bonus compatibility helpers
 	def _has_adjacent_bonus(self, pPlot):
+		"Return true when any neighboring plot has a bonus."
 		directions = (
 			DirectionTypes.DIRECTION_NORTH,
 			DirectionTypes.DIRECTION_NORTHEAST,
@@ -1517,6 +1558,7 @@ class ResourceManager:
 		return False
 
 	def _valid_bonus_plots(self, region_plots, iBonus):
+		"Return empty non-start plots that can hold a bonus."
 		validPlots = []
 		startLookup = self._start_plot_lookup()
 		for pPlot in region_plots:
@@ -1527,6 +1569,7 @@ class ResourceManager:
 		return validPlots
 
 	def _bonus_is_water(self, iBonus):
+		"Return true when a bonus belongs on coast or ocean."
 		bonusInfo = self.gc.getBonusInfo(iBonus)
 		iCoast = self.gc.getInfoTypeForString("TERRAIN_COAST")
 		iOcean = self.gc.getInfoTypeForString("TERRAIN_OCEAN")
@@ -1540,6 +1583,7 @@ class ResourceManager:
 		return False
 
 	def _bonus_matches_plot_type(self, pPlot, iBonus):
+		"Return true when a bonus matches land or water shape."
 		bonusInfo = self.gc.getBonusInfo(iBonus)
 
 		if self._bonus_is_water(iBonus):
@@ -1554,10 +1598,7 @@ class ResourceManager:
 		return bonusInfo.isFlatlands()
 
 	def _is_bonus_appropriate_for_plot(self, bonus_id, pPlot):
-		"""
-		Checks if the bonus is physically compatible with the plot's terrain,
-		topography, and feature, ignoring proximity and latitude.
-		"""
+		"Return true when a bonus fits the plot terrain, feature, and topography."
 		info = self.gc.getBonusInfo(bonus_id)
 
 		if pPlot.isHills():
@@ -1575,11 +1616,9 @@ class ResourceManager:
 
 		return True
 
-	def place_bonus_in_radius(self, bonus_list, iTargetCount=1, iCopies=1, radius=5):
-		"""
-		Ensure target bonus types from bonus_list exist near each player start.
-		Uses plotDistance so diagonal radius checks match Civ's plot radius.
-		"""
+	# Start-radius placement
+	def place_bonus_in_radius(self, bonus_list, iTargetCount=1, iCopies=1, radius=5, bLimitToTeamRegion=False):
+		"Ensure selected bonus types exist near each player start."
 		if iTargetCount < 1: iTargetCount = 1
 		if iCopies < 1: iCopies = 1
 
@@ -1594,9 +1633,9 @@ class ResourceManager:
 			if player.isEverAlive():
 				pStart = player.getStartingPlot()
 				if pStart and not pStart.isNone():
-					players.append((player.getID(), pStart.getX(), pStart.getY(), pStart.getArea()))
+					players.append((player.getID(), player.getTeam(), pStart.getX(), pStart.getY(), pStart.getArea()))
 
-		for (pid, sx, sy, iStartArea) in players:
+		for (pid, iTeam, sx, sy, iStartArea) in players:
 			present = {}
 
 			for dx in range(-radius, radius + 1):
@@ -1606,6 +1645,7 @@ class ResourceManager:
 						if plotDistance(sx, sy, nx, ny) <= radius:
 							pPlot = self.map.plot(nx, ny)
 							if pPlot.getArea() != iStartArea: continue
+							if bLimitToTeamRegion and not self._plot_in_team_region(pPlot, iTeam): continue
 							iBonus = pPlot.getBonusType(TeamTypes.NO_TEAM)
 							if iBonus in ids:
 								present[iBonus] = 1
@@ -1637,6 +1677,7 @@ class ResourceManager:
 								if plotDistance(sx, sy, nx, ny) <= radius:
 									pPlot = self.map.plot(nx, ny)
 									if pPlot.getArea() != iStartArea: continue
+									if bLimitToTeamRegion and not self._plot_in_team_region(pPlot, iTeam): continue
 									if self._is_player_start_plot(pPlot, startLookup) or pPlot.getBonusType(-1) != -1: continue
 									if pPlot.isWater() or pPlot.isPeak(): continue
 
@@ -1655,6 +1696,7 @@ class ResourceManager:
 									if plotDistance(sx, sy, nx, ny) <= radius:
 										pPlot = self.map.plot(nx, ny)
 										if pPlot.getArea() != iStartArea: continue
+										if bLimitToTeamRegion and not self._plot_in_team_region(pPlot, iTeam): continue
 										if not pPlot.isWater() and not pPlot.isPeak() and not self._is_player_start_plot(pPlot, startLookup):
 											if pPlot.getBonusType(-1) == -1:
 												emergency_plots.append(pPlot)
@@ -1672,7 +1714,9 @@ class ResourceManager:
 				if placed < iCopies:
 					print "IB radius placed only %d of %d copies for player %d" % (placed, iCopies, pid)
 
+	# Mapwide food placement
 	def ensure_bonus_per_grid(self, bonusNames, iGridSize):
+		"Ensure each map grid block has one listed land food bonus."
 		if iGridSize <= 0:
 			return
 
@@ -1731,7 +1775,9 @@ class ResourceManager:
 
 		print "IB map food scan: checked %d blocks, satisfied %d, placed %d, blocked %d" % (iBlocksChecked, iBlocksSatisfied, iPlaced, iBlocked)
 
+	# Start-BFC food placement
 	def place_bonus_in_BFC(self, bonusNames, iTargetCount, bCheckExisting):
+		"Ensure each start BFC has the requested listed bonuses."
 		if iTargetCount <= 0:
 			return
 
@@ -1832,7 +1878,9 @@ class ResourceManager:
 							pTarget.setBonusType(shuffledBonusIDs[0])
 							self._debug_sign(pTarget, "IB fallback start bonus P%d %s" % (iPlayer, self._bonus_name_from_id(shuffledBonusIDs[0])))
 
+	# Team-region balancing
 	def _fallback_bonus_plots(self, region_plots, iBonus, bMatchPlotType):
+		"Return relaxed candidate plots for team-region placement."
 		bWaterBonus = self._bonus_is_water(iBonus)
 		fallbackPlots = []
 		startLookup = self._start_plot_lookup()
@@ -1850,6 +1898,7 @@ class ResourceManager:
 		return fallbackPlots
 
 	def _place_bonus_copies(self, region_plots, iBonus, iCopies, regionName, bonusName, iPlayerCount):
+		"Place bonus copies through normal and fallback candidates."
 		if iCopies < 1: iCopies = 1
 
 		validPlots = self._valid_bonus_plots(region_plots, iBonus)
@@ -1885,6 +1934,7 @@ class ResourceManager:
 		return placed
 
 	def _wipe_bonus_types_in_plots(self, region_plots, bonusIDs, regionName):
+		"Remove listed bonus types from a plot collection."
 		removeLookup = {}
 		for iBonus in bonusIDs:
 			removeLookup[iBonus] = 1
@@ -1902,6 +1952,7 @@ class ResourceManager:
 		return iRemoved
 
 	def place_balanced_team_resource(self, iTeam, bonusNames, iTargetCount, iCopies, bPlaceNear=False, radius=5):
+		"Balance a resource group across one team region."
 		# Replaces the listed bonus group inside one team's half-map, then
 		# places a random subset back into that team region.  This keeps each
 		# team supplied from the same resource group without requiring the same
@@ -1988,6 +2039,7 @@ def normalizeAddExtras():
 	bTeamerBalancingOption = map.getCustomMapOption(8)
 	iMapFoodOption = map.getCustomMapOption(10)
 	iStartFoodOption = map.getCustomMapOption(11)
+	iStrategicOption = map.getCustomMapOption(13)
 	
 	LandFoodBonus = ["BONUS_WHEAT", "BONUS_RICE", "BONUS_CORN", "BONUS_COW", "BONUS_SHEEP", "BONUS_PIG", "BONUS_DEER", "BONUS_BANANA"]
 	StartLandFoodBonus = ["BONUS_WHEAT", "BONUS_RICE", "BONUS_CORN", "BONUS_COW", "BONUS_SHEEP", "BONUS_PIG"]
@@ -2007,7 +2059,11 @@ def normalizeAddExtras():
 		rm.swap_resources("BONUS_IVORY", None)
 		
 		# BonusList, # Types, Count, Radius
-		rm.place_bonus_in_radius(Strategics, 3, 1, radius=4)
+		if iStrategicOption == 1:
+			rm.place_bonus_in_radius(["BONUS_IRON"], 1, 1, radius=4, bLimitToTeamRegion=True)
+			rm.place_bonus_in_radius(["BONUS_COPPER", "BONUS_HORSE"], 1, 1, radius=5, bLimitToTeamRegion=True)
+		elif iStrategicOption == 2:
+			rm.place_bonus_in_radius(["BONUS_IRON", "BONUS_COPPER", "BONUS_HORSE"], 3, 1, radius=5, bLimitToTeamRegion=True)
 
 		# 2. Place Balanced: Bonus list per team region
 		sortedTeams = teamHalfMap.keys()
