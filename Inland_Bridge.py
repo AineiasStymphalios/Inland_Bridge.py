@@ -104,9 +104,9 @@ def getCustomMapOptionDescAt(argsList):
 		if iSelection == 0: return "Two Seas"
 		elif iSelection == 1: return "Infinity"
 		elif iSelection == 2: return "Hourglass"
-		elif iSelection == 3: return "Two Seas (corner seas)"
-		elif iSelection == 4: return "Two Shores (E-W)"
-		return "Two Shores (N-S)"
+		elif iSelection == 3: return "Two Shores (E-W)"
+		elif iSelection == 4: return "Two Shores (N-S)"
+		return "Inland Sea"
 	elif iOption == 5: # Islands
 		if iSelection == 0: return "Disabled"
 		elif iSelection == 1: return "Tiny Islands"
@@ -125,9 +125,9 @@ def getCustomMapOptionDescAt(argsList):
 		return "Enabled"
 	elif iOption == 10: # Land Food Across Map
 		if iSelection == 0: return "Disabled"
-		elif iSelection == 1: return "1 per 4x4 tiles"
-		elif iSelection == 2: return "1 per 5x5 tiles"
-		return "1 per 6x6 tiles"
+		elif iSelection == 1: return "Minimum spacing 3 tiles"
+		elif iSelection == 2: return "Minimum spacing 4 tiles"
+		return "Minimum spacing 5 tiles"
 	elif iOption == 11: # Land Food on Starts
 		if iSelection == 0: return "Disabled"
 		elif iSelection == 1: return "At least 1"
@@ -979,7 +979,7 @@ def generatePlotTypes():
 					("IslandsBR", "Rect", 0.6, 0.27, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 					("IslandsTR", "Rect", 0.6, 0.73, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 				]
-	else: # Two Shores (NS)
+	elif geography_opt == 5: # Two Shores (NS)
 		bEnforceLandEdge = 0
 		base_regions = [
 			("Rect_Sea_Base", "Rect", 0.500, 0.500, 1, 0.2 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 100, True),
@@ -991,6 +991,29 @@ def generatePlotTypes():
 					("IslandsL", "Rect", 0.270, 0.5, 0.250, 0.250, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 					("IslandsR", "Rect", 0.730, 0.5, 0.250, 0.250, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 				]
+	else: # Inland Sea
+		bEnforceLandEdge = 1
+		# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
+		base_regions = [
+			("Ellipse_Sea_BG", "Ellipse", 0.5, 0.500, 0.6, 0.5, 0, "water", BalanceGrain, ScatterGrain, 100, True),
+			("Ellipse_Sea", "Ellipse", 0.5, 0.5, 0.7 + fSeaSizeChange, 0.65 + fSeaSizeChange, 0, "water", ScatterGrain, ScatterGrain, 70, True),
+		]
+		if island_opt == 1: # Tiny
+			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
+			island_regions = [
+				("IslandsTL", "Rect", 0.4, 0.600, 0.250, 0.150, 0, "flat", BalanceGrain, ScatterGrain, 85, True),
+				("IslandsTR", "Rect", 0.6, 0.600, 0.250, 0.150, 0, "flat", BalanceGrain, ScatterGrain, 85, True),
+				("IslandsBL", "Rect", 0.4, 0.400, 0.250, 0.150, 0, "flat", BalanceGrain, ScatterGrain, 85, True),
+				("IslandsBR", "Rect", 0.6, 0.400, 0.250, 0.150, 0, "flat", BalanceGrain, ScatterGrain, 85, True),
+			]
+		elif island_opt == 2: # Normal
+			# Name, Type, CX, CY, W, H, Angle, Terrain, Grain, Hills, Water%, bReduceEdges
+			island_regions = [
+				("IslandsTL", "Rect", 0.4, 0.600, 0.250, 0.150, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
+				("IslandsTR", "Rect", 0.6, 0.600, 0.250, 0.150, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
+				("IslandsBL", "Rect", 0.4, 0.400, 0.250, 0.150, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
+				("IslandsBR", "Rect", 0.6, 0.400, 0.250, 0.150, 0, "flat", BalanceGrain, ScatterGrain, 65, True),
+			]
 
 	regions.extend(base_regions)
 	regions.extend(additional_regions)
@@ -1715,10 +1738,12 @@ class ResourceManager:
 					print "IB radius placed only %d of %d copies for player %d" % (placed, iCopies, pid)
 
 	# Mapwide food placement
-	def ensure_bonus_per_grid(self, bonusNames, iGridSize):
-		"Ensure each map grid block has one listed land food bonus."
-		if iGridSize <= 0:
+	def ensure_bonus_poisson(self, bonusNames, iMinDistance, iMinAreaSize):
+		"Place listed land food bonuses with per-area Poisson spacing."
+		if iMinDistance <= 0:
 			return
+		if iMinAreaSize < 1:
+			iMinAreaSize = 1
 
 		bonusIDs = self._bonus_ids_from_names(bonusNames)
 		bonusLookup = {}
@@ -1726,54 +1751,80 @@ class ResourceManager:
 			bonusLookup[iBonus] = 1
 
 		startLookup = self._start_plot_lookup()
-		iBlocksChecked = 0
-		iBlocksSatisfied = 0
+		areaSizeLookup = {}
+		eligibleAreaLookup = {}
+		samplesByArea = {}
+		candidates = []
+		iExisting = 0
+
+		for i in range(self.map.numPlots()):
+			pPlot = self.map.plotByIndex(i)
+			if pPlot.isWater(): continue
+
+			iArea = pPlot.getArea()
+			if not areaSizeLookup.has_key(iArea):
+				pArea = self.map.getArea(iArea)
+				if pArea is None or pArea.isNone():
+					areaSizeLookup[iArea] = 0
+				else:
+					areaSizeLookup[iArea] = pArea.getNumTiles()
+			if areaSizeLookup[iArea] < iMinAreaSize: continue
+
+			eligibleAreaLookup[iArea] = 1
+			if not samplesByArea.has_key(iArea):
+				samplesByArea[iArea] = []
+
+			if bonusLookup.has_key(pPlot.getBonusType(-1)):
+				samplesByArea[iArea].append((pPlot.getX(), pPlot.getY()))
+				iExisting += 1
+				continue
+
+			if pPlot.getBonusType(-1) != -1: continue
+			if pPlot.isPeak(): continue
+			if self._is_player_start_plot(pPlot, startLookup): continue
+
+			bCanHaveFood = False
+			for iBonus in bonusIDs:
+				if pPlot.canHaveBonus(iBonus, True):
+					bCanHaveFood = True
+					break
+			if bCanHaveFood:
+				candidates.append(pPlot)
+
+		candidates = self._shuffle_list(candidates, "IB Poisson Food Shuffle")
 		iPlaced = 0
-		iBlocked = 0
+		iTooClose = 0
+		iNoCompatibleBonus = 0
 
-		for xMin in range(0, self.iW, iGridSize):
-			for yMin in range(0, self.iH, iGridSize):
-				iBlocksChecked += 1
-				xMax = xMin + iGridSize
-				yMax = yMin + iGridSize
-				if xMax > self.iW: xMax = self.iW
-				if yMax > self.iH: yMax = self.iH
+		for pPlot in candidates:
+			iArea = pPlot.getArea()
+			x = pPlot.getX()
+			y = pPlot.getY()
+			bTooClose = False
+			for (sampleX, sampleY) in samplesByArea[iArea]:
+				if plotDistance(x, y, sampleX, sampleY) < iMinDistance:
+					bTooClose = True
+					break
+			if bTooClose:
+				iTooClose += 1
+				continue
 
-				iExisting = 0
-				plots = []
-				for x in range(xMin, xMax):
-					for y in range(yMin, yMax):
-						pPlot = self.map.plot(x, y)
-						if bonusLookup.has_key(pPlot.getBonusType(-1)):
-							iExisting += 1
-						plots.append(pPlot)
+			compatibleBonusIDs = []
+			for iBonus in bonusIDs:
+				if pPlot.canHaveBonus(iBonus, True):
+					compatibleBonusIDs.append(iBonus)
+			if len(compatibleBonusIDs) == 0:
+				iNoCompatibleBonus += 1
+				continue
 
-				if iExisting > 0:
-					iBlocksSatisfied += 1
-					continue
+			iChoice = self.dice.get(len(compatibleBonusIDs), "IB Map Food Poisson Bonus")
+			iBonus = compatibleBonusIDs[iChoice]
+			pPlot.setBonusType(iBonus)
+			samplesByArea[iArea].append((x, y))
+			self._debug_sign(pPlot, "IB map food " + self._bonus_name_from_id(iBonus))
+			iPlaced += 1
 
-				plots = self._shuffle_list(plots, "IB Map Food Plot Shuffle")
-				shuffledBonusIDs = self._shuffle_list(bonusIDs, "IB Map Food Bonus Shuffle")
-				bPlaced = False
-				for pPlot in plots:
-					if pPlot.getBonusType(-1) != -1: continue
-					if pPlot.isWater() or pPlot.isPeak(): continue
-					if self._is_player_start_plot(pPlot, startLookup): continue
-					if self._has_adjacent_bonus(pPlot): continue
-					for iBonus in shuffledBonusIDs:
-						if pPlot.canHaveBonus(iBonus, True):
-							pPlot.setBonusType(iBonus)
-							self._debug_sign(pPlot, "IB map food " + self._bonus_name_from_id(iBonus))
-							iPlaced += 1
-							bPlaced = True
-							break
-					if bPlaced:
-						break
-
-				if not bPlaced:
-					iBlocked += 1
-
-		print "IB map food scan: checked %d blocks, satisfied %d, placed %d, blocked %d" % (iBlocksChecked, iBlocksSatisfied, iPlaced, iBlocked)
+		print "IB map food Poisson: spacing %d, areas %d, existing %d, candidates %d, placed %d, too close %d, incompatible %d" % (iMinDistance, len(eligibleAreaLookup.keys()), iExisting, len(candidates), iPlaced, iTooClose, iNoCompatibleBonus)
 
 	# Start-BFC food placement
 	def place_bonus_in_BFC(self, bonusNames, iTargetCount, bCheckExisting):
@@ -2086,7 +2137,12 @@ def normalizeAddExtras():
 
 	if iMapFoodOption != 0:
 		print "PY: Inland Bridge ensuring mapwide land food bonuses..."
-		rm.ensure_bonus_per_grid(LandFoodBonus, iMapFoodOption + 3)
+		iMapFoodDistance = 3
+		if iMapFoodOption == 2:
+			iMapFoodDistance = 4
+		elif iMapFoodOption == 3:
+			iMapFoodDistance = 5
+		rm.ensure_bonus_poisson(LandFoodBonus, iMapFoodDistance, 5)
 	if iStartFoodOption > 0:
 		print "PY: Inland Bridge adding starting plot food bonuses..."
 		rm.place_bonus_in_BFC(StartLandFoodBonus, iStartFoodOption, True)

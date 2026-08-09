@@ -6,20 +6,24 @@ Features a center bridge splitting the sea into two, as well as several multipla
 ![StandardSizeThumb](infinity.png)
 ![StandardSizeThumb](hourglass.png)
 ![StandardSizeThumb](two_shores.png)
+![StandardSizeThumb](inland_sea.png)
 
 # Features
 ## Map Options
-- Map Aspect Ratio: 16:10 or 4:3.
-- Latitude: Both hemispheres or one hemisphere.
-- Axial Tilt: 0, 90, and 45 degrees. 90 degrees is recommended for two-team games.
-- Team Start: If enabled, groups teams into halves or corners of the map. No effect if more than 5 teams.
-- Teamer Bonus Balancing: If enabled, balances team-region bonus groups using the team's assigned half or corner. If The Two Shores option is selected, landmass sizes will be balanced to within 3% of each.
-- Islands: Disabled or enabled.
-- Geography: Two Seas, Infinity, Hourglass, Two Seas (corner seas), Two Shores (E-W or N-S split)
-- Two Tile Seas: Increases coast distances. Recommended for some maps to allow fair access to islands.
+- Climate Details: Default Inland Sea or Natural.
+- Hemisphere Option: Both hemispheres or a single hemisphere.
+- Axial Tilt: Disabled, 90 degrees, or 45 degrees.
 - World Wrap: Flat, Wrap X, or Wrap X & Y.
-- Resources: Standard or Balanced.
-- Debug Signs: If enabled, adds map signs for custom balancing placements.
+- Geography: Two Seas, Infinity, Hourglass, Two Shores (E-W), Two Shores (N-S), or Inland Sea.
+- Islands: Disabled, Tiny Islands, or Clumped Islands.
+- Two-tile Coasts: Enabled or disabled. Enabled expands coastlines to two tiles where possible.
+- Team Start: Start teams together or disable custom team starts.
+- Teamer Resource Balancing: Disabled or enabled. Enabled balances resources within assigned team regions.
+- Debug Signs: Disabled or enabled for custom placement signs.
+- Land Food Across Map: Disabled, or minimum Poisson spacing of 3, 4, or 5 tiles.
+- Land Food on Starts: Disabled, or ensure at least 1, 2, or 3 land food bonuses in each starting BFC.
+- Reveal Start Area Radius: Disabled, or reveal a radius of 2, 3, or 4 around each start.
+- Strategic Resources Near Starts: Disabled, ensure Iron plus Copper or Horse, or ensure Iron, Copper, and Horse.
 
 # Instructions
 1. Download Inland_Bridge.py from the latest [release.](https://github.com/AineiasStymphalios/Inland_Bridge.py/releases)
