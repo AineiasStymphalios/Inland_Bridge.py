@@ -965,7 +965,7 @@ def generatePlotTypes():
 				("IslandsBL", "Rect", 0.100, 0.350, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 				("IslandsBR", "Rect", 0.900, 0.350, 0.170, 0.200, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 			]
-	elif geography_opt == 4: # Two Shores (EW)
+	elif geography_opt == 3: # Two Shores (EW)
 		bEnforceLandEdge = 0
 		base_regions =[
 			("Rect_Sea_Base", "Rect", 0.500, 0.500, 0.200 + fSeaSizeChange, 1.000, 0, "water", BalanceGrain, ScatterGrain, 100, True),
@@ -979,7 +979,7 @@ def generatePlotTypes():
 					("IslandsBR", "Rect", 0.6, 0.27, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 					("IslandsTR", "Rect", 0.6, 0.73, 0.2, 0.2, 0, "flat", ScatterGrain, ScatterGrain, 80 + iWaterPercentChange, True),
 				]
-	elif geography_opt == 5: # Two Shores (NS)
+	elif geography_opt == 4: # Two Shores (NS)
 		bEnforceLandEdge = 0
 		base_regions = [
 			("Rect_Sea_Base", "Rect", 0.500, 0.500, 1, 0.2 + fSeaSizeChange, 0, "water", BalanceGrain, ScatterGrain, 100, True),
