@@ -38,7 +38,7 @@ C:\Program Files\Firaxis Games\Civilization 4\Beyond the Sword\PublicMaps
 ```
 C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization IV Beyond the Sword\Beyond the Sword\PublicMaps
 ```
-3. Load Civ4. Select Central_Plains through *PLAY NOW* or *CUSTOM GAME.*
+3. Load Civ4. Select Inland_Bridge through *PLAY NOW* or *CUSTOM GAME.*
 
 
 ## Version support

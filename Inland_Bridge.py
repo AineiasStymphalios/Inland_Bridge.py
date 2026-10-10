@@ -1933,11 +1933,20 @@ class ResourceManager:
 	def _fallback_bonus_plots(self, region_plots, iBonus, bMatchPlotType):
 		"Return relaxed candidate plots for team-region placement."
 		bWaterBonus = self._bonus_is_water(iBonus)
+		iMinAreaSize = self.gc.getBonusInfo(iBonus).getMinAreaSize()
 		fallbackPlots = []
 		startLookup = self._start_plot_lookup()
 		for pPlot in region_plots:
 			if pPlot.getBonusType(-1) != -1: continue
 			if self._is_player_start_plot(pPlot, startLookup): continue
+			if bWaterBonus:
+				if not pPlot.isWater(): continue
+				# Keep the XML water-area minimum even when terrain is relaxed.
+				pArea = self.map.getArea(pPlot.getArea())
+				if pArea is None or pArea.isNone(): continue
+				if not pArea.isWater(): continue
+				if iMinAreaSize != -1:
+					if pArea.getNumTiles() < iMinAreaSize: continue
 			if bMatchPlotType:
 				if not self._bonus_matches_plot_type(pPlot, iBonus): continue
 			else:
@@ -2104,6 +2113,7 @@ def normalizeAddExtras():
 		PreciousMetals = ["BONUS_GOLD", "BONUS_SILVER", "BONUS_GEMS"]
 		EarlyHappiness = ["BONUS_FUR", "BONUS_WINE"]
 		CalendarBonus = ["BONUS_SPICES", "BONUS_SUGAR", "BONUS_DYE", "BONUS_INCENSE", "BONUS_SILK"]
+		HealthBonus = ["BONUS_COW", "BONUS_DEER", "BONUS_BANANA"]
 		WaterBonus = ["BONUS_CRAB", "BONUS_WHALE"]
 
 		# 1. Global Swap
@@ -2128,7 +2138,8 @@ def normalizeAddExtras():
 			rm.place_balanced_team_resource(iTeam, CalendarBonus, 4, iRoundedDown)
 			rm.place_balanced_team_resource(iTeam, PreciousMetals, 3, iRoundedUp)
 			rm.place_balanced_team_resource(iTeam, EarlyHappiness, 2, iRoundedUp)
-			# rm.place_balanced_team_resource(iTeam, WaterBonus, 2, iRoundedDown)
+			rm.place_balanced_team_resource(iTeam, HealthBonus, 3, iRoundedDown)
+			rm.place_balanced_team_resource(iTeam, WaterBonus, 2, iRoundedDown)
 			rm.place_balanced_team_resource(iTeam, SemiStrategics, 3, iRoundedDown, bPlaceNear=True, radius=4)
 
 	else:
